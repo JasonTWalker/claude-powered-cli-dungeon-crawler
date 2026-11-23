@@ -1,8 +1,30 @@
 {
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.330",
+    "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
     "vitest": "^5.1.1",
     "zod": "^4.6.7"
-  }
+  },
+  "name": "claude-powered-cli-dungeon-crawler",
+  "version": "1.0.0",
+  "description": "A small in scope dungeon crawler CLI game with the aim of developing a deeper understanding of how to work alongside Claude Code. Will have features that use the Claude SDK/Messages API to produce dynamic responses to user actions - exploring prompt injection negation approaches and rigidly defined tool schemas.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JasonTWalker/claude-powered-cli-dungeon-crawler.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/JasonTWalker/claude-powered-cli-dungeon-crawler/issues"
+  },
+  "homepage": "https://github.com/JasonTWalker/claude-powered-cli-dungeon-crawler#readme",
+  "devDependencies": {}
 }
