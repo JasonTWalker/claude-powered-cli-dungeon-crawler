@@ -32,7 +32,7 @@ export function createInitialState(world: World, maxSlots = DEFAULT_MAX_SLOTS): 
       fixtures[fixture.id] = [...fixture.affordances];      // maps fixture affordances to the fixtures in the room
     }
     rooms[room.id] = {
-      items: [...room.items],                               // maps items in the room to the room in state
+      items: [...room.items],                               // maps items in the room world to the room in state, note copies spread - doesn't copy reference
       visited: room.id === world.startRoomId,               // only visited room at start is the initial room
       fixtures,                                             // loads fixtures into room state
     };
