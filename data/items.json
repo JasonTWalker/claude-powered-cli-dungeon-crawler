@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "id": "torch",
+      "name": "Wooden Torch",
+      "description": "A stick wrapped in oil-soaked rags.",
+      "tags": ["light_source", "flammable"],
+      "state": { "lit": false }
+    },
+    {
+      "id": "lighter",
+      "name": "Brass Lighter",
+      "description": "Dented, but it still sparks.",
+      "tags": ["ignition_source"]
+    },
+    {
+      "id": "bread",
+      "name": "Stale Bread",
+      "description": "Hard enough to knock on.",
+      "tags": ["food"]
+    }
+  ]
+}
