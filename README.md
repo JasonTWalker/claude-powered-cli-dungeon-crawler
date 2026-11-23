@@ -374,6 +374,90 @@ export function pickUp(world: World, state: GameState, { item_id }: PickUpInput)
 
 <hr> 
 
+### CLI 'Offline' Paser
+
+This defined CLI parser will be the basic implementation of verb, noun typical of these kinds of games. It will be rigidly typed, with some flexibility - e.g. typing "inventory" functions the same as typing "inv", or "take" = "get", "grab", "pick up", etc. This wont be conducive to a good gameplay experience though, and after the SDK Agent has been implemented to parse commands this legacy parser will serve as a way to test gameplay actions and the rules table. 
+
+
+<details><summary><b>- Show CLI Parser Implementation </b></summary>
+
+#### Parser
+The parser.ts maps verbs to commands as follows:
+
+```
+export type Command =
+  | { verb: "take"; noun: string }
+  | { verb: "drop"; noun: string }
+  | { verb: "examine"; noun: string }
+  | { verb: "inventory" }
+  | { verb: "look" }
+  | { verb: "help" }
+  | { verb: "quit" };
+
+type Verb = Command["verb"];
+
+const VERBS = new Map<string, Verb>([
+  ["take", "take"], ["get", "take"], ["grab", "take"], ["pick", "take"],
+  ["drop", "drop"],
+  ["examine", "examine"], ["x", "examine"], ["inspect", "examine"],
+  ["inventory", "inventory"], ["inv", "inventory"], ["i", "inventory"],
+  ["look", "look"], ["l", "look"],
+  ["help", "help"],
+  ["quit", "quit"], ["exit", "quit"],
+]);
+
+```
+Filler words are defined "the", "a", etc. and are stripped from the input - this parser only really cares about the first and last input words, treating them as [command, noun] pairs. A helper function resolveItemId is used to determine if the input noun corresponds to an item within the world - if it does then the handler commands defined previously are executed. The ToolResponse codes are shown for now:
+
+```
+> pick up torch
+OK {"picked_up":{"id":"torch","name":"Wooden Torch"},"slots_used":1,"max_slots":4}
+
+> 
+```
+
+```
+> pick up torch
+ALREADY_CARRIED (rule): Wooden Torch is already in the inventory.
+
+> 
+```
+```
+> drop item that doesn't exist
+UNKNOWN_ITEM (invalid_input): No item with id "item that doesn't exist" exists.
+
+> 
+```
+
+and a help command has been provided to show available actions:
+
+```
+> help
+Commands:
+  look / l                 describe the room
+  take <item>  (get, grab) pick something up
+  drop <item>              put something down
+  examine <item>  (x)      look closely at something
+  inventory  (i)           what you're carrying
+  quit                     leave the dungeon
+
+> 
+```
+
+describeRoom has also been provided to retrieve the items, fixtures and description present within a room, called when using the "look" command.
+
+```
+== Crumbling Entrance ==
+Moss-covered steps lead down into the dark.
+You see: Iron Gate
+On the floor: Wooden Torch, Brass Lighter, Stale Bread
+```
+
+
+</details>
+
+<hr>
+
 #### System Prompt
 
 "You may add sensory atmosphere (sounds, smells, light, temperature). Only name objects the player could interact with if they appear in a tool result. Never mention exits, items or fixtures that weren’t returned."
