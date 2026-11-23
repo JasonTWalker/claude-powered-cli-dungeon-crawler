@@ -63,35 +63,130 @@ Candidates for logging include:
 
 ### Game Architecture
 
+#### 'World' Object
 
-#### Overarching "Rooms" JSON:
+an interface containing a record of 'items' and 'rooms', using records to match the string of their respective ID's to their JSON object. Also contains the ID of the starting room that the player will initially be placed in. Provides fast lookup for rooms and corresponding items. 
+
+#### "Rooms" Example JSON:
 
 ```
 {
+  "start": "entrance",
   "rooms": [
     {
       "id": "entrance",
       "name": "Crumbling Entrance",
-      "description": "A wrought iron gate lies to the North, locked with a rusty iron padlock. Perhaps something heavy can break it.",
-      "dark": false,
-      "exits": {
-        "north": { "to": "hall", "requiresFlag": "gate_open" },
-      },
-      "items": ["torch", "lighter", "brick"]
+      "description": "Moss-covered steps lead down into the dark.",
+      "drk": false,
+      "exits": {},
+      "items": ["torch", "lighter", "bread"],
       "fixtures": [
         {
           "id": "iron_gate",
           "name": "Iron Gate",
           "description": "Rusted shut, with a heavy padlock.",
-          "state": ["locked"]
+          "affordances": ["locked"]
         }
-      ],
-      "atmosphere": ["dripping water", "smell of damp stone", "faint draught from the north"]
+      ]
     }
   ]
 }
+```
+
+#### "Items" Example JSON:
 
 ```
+{
+  "items": [
+    {
+      "id": "torch",
+      "name": "Wooden Torch",
+      "description": "A stick wrapped in oil-soaked rags.",
+      "tags": ["light_source", "flammable"],
+      "state": { "lit": false }
+    },
+    {
+      "id": "lighter",
+      "name": "Brass Lighter",
+      "description": "Dented, but it still sparks.",
+      "tags": ["ignition_source"]
+    },
+    {
+      "id": "bread",
+      "name": "Stale Bread",
+      "description": "Hard enough to knock on.",
+      "tags": ["food"]
+    }
+  ]
+}
+```
+
+#### "World" Structure from Above:
+```
+{
+  items: {
+    torch: {
+      id: 'torch',
+      name: 'Wooden Torch',
+      description: 'A stick wrapped in oil-soaked rags.',
+      tags: [Array],
+      state: [Object]
+    },
+    lighter: {
+      id: 'lighter',
+      name: 'Brass Lighter',
+      description: 'Dented, but it still sparks.',
+      tags: [Array]
+    },
+    bread: {
+      id: 'bread',
+      name: 'Stale Bread',
+      description: 'Hard enough to knock on.',
+      tags: [Array]
+    }
+  },
+  rooms: {
+    entrance: {
+      id: 'entrance',
+      name: 'Crumbling Entrance',
+      description: 'Moss-covered steps lead down into the dark.',
+      dark: false,
+      exits: {},
+      items: [Array],
+      fixtures: [Array]
+    }
+  },
+  startRoomId: 'entrance'
+}
+```
+
+#### Schema Enforcement
+
+Enforcing a rigid schema to ensure errors don't creep into the game is done using the Zod module. This allows you to define the schema that each Room, Fixture, and Item should follow - and pass these through the validator before building the world. If an invalid schema is found, then the world doesn't build and a suitable error message is shown. ID validation is also done to ensure any item to be added to the "items" array of a room object is actually defined and exists. 
+
+##### Error Message when Changing Room "Entrance" to Contain "stale_bread":
+```
+World data error:
+Room "entrance" contains unknown item "stale_bread"
+```
+
+##### Error Message when JSON Tag Typo'd:
+Changing "description" to "desc":
+```
+World data error:
+rooms.json is invalid:
+✖ Unrecognized key: "desc"
+  → at rooms[0]
+✖ Invalid input: expected string, received undefined
+  → at rooms[0].description
+```
+
+Test cases defined in 'world.test.ts' are used to ensure this rigid schema validation holds.
+
+
+
+<hr>
+
 #### System Prompt
 
 "You may add sensory atmosphere (sounds, smells, light, temperature). Only name objects the player could interact with if they appear in a tool result. Never mention exits, items or fixtures that weren’t returned."
