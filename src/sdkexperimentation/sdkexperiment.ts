@@ -25,7 +25,7 @@ async function say(playerText: string): Promise<void> {
     .filter((block) => block.type === "text")
     .map((block) => block.text)
     .join("");
-    
+
   console.log(`> ${playerText}`);
   console.log(text);
   console.log(formatUsage(response.usage), `stop: ${response.stop_reason}\n`);
@@ -34,3 +34,17 @@ async function say(playerText: string): Promise<void> {
 await say("The player arrives at the entrance: moss-covered steps leading down into the dark.");
 await say("I listen carefully. What can I hear?");
 await say("Remind me, where am I standing?");
+
+
+// example of handling API errors, SDK retries rate limits (429), server errors (5xx) and dropped connections.
+// twice by default
+// third error category alongside custom "invalid_input" and "rule"
+try {
+  await say("...");
+} catch (err) {
+  if (err instanceof Anthropic.APIError) {
+    console.error(`API error ${err.status}: ${err.message}`);
+  } else {
+    throw err;
+  }
+}
