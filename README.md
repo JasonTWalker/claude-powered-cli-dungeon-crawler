@@ -61,7 +61,13 @@ Candidates for logging include:
 
 <hr>
 
-### Game Architecture
+## Game Architecture
+
+### World Schema Definitions
+
+The template from which the game will be generated out of. This is how rooms and their pass conditions are defined, using Zod to ensure rigid schema definitions.
+
+<details><summary> <b>- Show Schema Definitions for World, Rooms, and Items </b></summary>
 
 #### 'World' Object
 
@@ -69,6 +75,7 @@ an interface containing a record of 'items' and 'rooms', using records to match 
 
 #### "Rooms" Example JSON:
 
+Fixtures in this case defines items that are a part of the room that can be interacted with but not picked up. 
 ```
 {
   "start": "entrance",
@@ -183,7 +190,69 @@ rooms.json is invalid:
 
 Test cases defined in 'world.test.ts' are used to ensure this rigid schema validation holds.
 
+</details>
 
+<hr>
+
+
+### Game State Definitions
+
+Now that we have defined our 'World' as an immutable object, we need something that copies it into a mutable storage state 'GameState' that our agent can interact with. At game start, this state is generated using the 'World' object.
+
+<details><summary><b>- Show GameState Definitions </b></summary>
+
+#### RoomState Struct
+
+Contains the parts of the room that can change, consider the array-string of items - when a room loads it can have items on the floor - the player may pick them up removing the item from this list. The player may then put an item down in a different room - adding it to that room's array. Fixture ID's are mapped to their affordances such as "iron_gates" -> "locked" or "wooden_crate" -> ["flammable", "breakable"]
+
+```
+export interface RoomState {
+  items: string[];                     // item ids on the floor
+  visited: boolean;
+  fixtures: Record<string, string[]>;  // fixture id → current affordances
+}
+```
+
+#### GameState Object
+Contains the actual status of the game as it currently is, with an object containing information pertaining to the player, their inventory, the maximum number of items they can carry and the room they're currently in. Holds reference to item states and flags for room clear requirements. 
+
+```
+// structure of the object holding mutable game state
+export interface GameState {
+  player: {
+    roomId: string;                     // id of the room the player is currently in
+    inventory: string[];               // item ids in inventory
+    maxSlots: number;                  // how many items the player can hold
+  };
+  rooms: Record<string, RoomState>;     // maps room ID's to their actual state
+  itemStates: Record<string, Record<string, boolean>>; // item id → e.g. { torch: { lit: false } }
+  flags: Record<string, boolean>;      // e.g. { gate_open: true }, as exits don't change - only the flag determining if they're open
+  turn: number;
+}
+```
+#### findItems Function
+Used to determine if an item is present, will be used within tool calls to see if the player has access to the item they want to use/pick up.
+
+```
+// items can either be in the inventory or on the floor in a specified room
+// allows for players to pick up an item 
+export type ItemLocation =
+  | { where: "inventory" }
+  | { where: "room"; roomId: string };
+
+
+// determines where the item is, if in inventory it returns "inventory", if in current room then it's in "room", otherwise it's 
+// not found "null"
+export function findItem(state: GameState, itemId: string): ItemLocation | null {
+  if (state.player.inventory.includes(itemId)) return { where: "inventory" };
+  for (const [roomId, room] of Object.entries(state.rooms)) {
+    if (room.items.includes(itemId)) return { where: "room", roomId };
+  }
+  return null;
+}
+```
+
+</details>
 
 <hr>
 
