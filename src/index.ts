@@ -1,11 +1,14 @@
 import { loadWorld, WorldError } from "./game/world.js";
+import { createInitialState } from "./game/state.js";
 
 try {
   const world = loadWorld();
-  const start = world.rooms[world.startRoomId]!;
-  console.log(`Loaded ${Object.keys(world.rooms).length} room(s), ${Object.keys(world.items).length} item(s)`);
-  console.log(`You begin in: ${start.name}`);
-  console.log(world)
+  const state = createInitialState(world);
+  const room = world.rooms[state.player.roomId]!;
+
+  console.log(`You begin in: ${room.name}`);
+  console.log(`On the floor: ${state.rooms[room.id]!.items.map((id) => world.items[id]!.name).join(", ")}`);
+  console.log(`Inventory: ${state.player.inventory.length}/${state.player.maxSlots} slots used`);
 } catch (err) {
   if (err instanceof WorldError) {
     console.error(`World data error:\n${err.message}`);
