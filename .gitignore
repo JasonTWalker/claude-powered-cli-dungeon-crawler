@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Secrets - never commit your API key
+.env
+.env.*
+!.env.example
+
+# Build output (if you ever compile with tsc)
+dist/
+*.tsbuildinfo
+
+# Test coverage (vitest --coverage)
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Game save files (Milestone 6)
+saves/
+
+# Editor - keep shared VS Code settings, ignore personal state
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store
