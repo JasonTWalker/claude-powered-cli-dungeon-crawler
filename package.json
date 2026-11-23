@@ -12,7 +12,10 @@
   "description": "A small in scope dungeon crawler CLI game with the aim of developing a deeper understanding of how to work alongside Claude Code. Will have features that use the Claude SDK/Messages API to produce dynamic responses to user actions - exploring prompt injection negation approaches and rigidly defined tool schemas.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx --env-file=.env src/index.ts",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+    
   },
   "repository": {
     "type": "git",
@@ -21,7 +24,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/JasonTWalker/claude-powered-cli-dungeon-crawler/issues"
   },
