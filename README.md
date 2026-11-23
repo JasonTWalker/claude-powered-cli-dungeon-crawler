@@ -42,4 +42,24 @@ But the response could be used to determine useful information about the attempt
 ### Managed SubAgents & Hooks(?)
 
 Managed sub agents could be used to control NPCs such as enemies, with hooks used to force actions to take place in-line with gameplay rules.
-For example, if the combat is to be turn-based, and a model wants to call a tool say damage_player - then a BeforeToolUse hook could be used to ensure that the subagent is acting within their turn.
+For example, if the combat is to be turn-based, and a model wants to call a tool say damage_player - then a BeforeToolUse hook could be used to ensure that the subagent is acting within their turn. Exploring this will give a deeper understanding of managed context - what happens if the sub-agent knows the player's health? 
+
+
+<hr>
+
+### Logging
+
+To manage token usage (this will be hosted on my personal API key) logging will be used. This will aid in testing, such as logging user turns that return an error outside of a define error code for "item not available". 
+Candidates for logging include:
+
+- Conversational turn
+- Round
+- Type of action - tool_call, tool_result, state_change (tool action modifies in-code game state)
+- API response, stop reason, tokens used, model used - to measure how "expensive" the game is during runtime, find where token costs are exceeding expectations.
+- Narrative text, what is shown to the player - check that it remains in character with flavour
+- Errors
+
+<hr>
+
+### Game Architecture
+
