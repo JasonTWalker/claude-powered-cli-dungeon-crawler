@@ -1,5 +1,6 @@
 // Define valid world generation for testing suites
 import { buildWorld, type World } from "../src/game/world.js";
+import { createInitialState, type GameState } from "../src/game/state.js";
 
 // Raw JSON is untyped in real life, so fixtures are `any` to let tests break them freely.
 export function validItems(): any {
@@ -30,4 +31,9 @@ export function validRooms(): any {
 
 export function testWorld(): World {
   return buildWorld(validItems(), validRooms());
+}
+
+export function newGame(maxSlots?: number): { world: World; state: GameState } {
+  const world = testWorld();
+  return { world, state: createInitialState(world, maxSlots) };
 }
