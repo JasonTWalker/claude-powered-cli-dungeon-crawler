@@ -1,0 +1,21 @@
+{
+  "start": "entrance",
+  "rooms": [
+    {
+      "id": "entrance",
+      "name": "Crumbling Entrance",
+      "description": "Moss-covered steps lead down into the dark.",
+      "dark": false,
+      "exits": {},
+      "items": ["torch", "lighter", "bread"],
+      "fixtures": [
+        {
+          "id": "iron_gate",
+          "name": "Iron Gate",
+          "description": "Rusted shut, with a heavy padlock.",
+          "affordances": ["locked"]
+        }
+      ]
+    }
+  ]
+}
