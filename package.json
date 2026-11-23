@@ -14,7 +14,8 @@
   "scripts": {
     "dev": "tsx --env-file=.env src/index.ts",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sdkexperiment": "tsx --env-file=.env src/sdkexperimentation/sdkexperiment.ts"
     
   },
   "repository": {
