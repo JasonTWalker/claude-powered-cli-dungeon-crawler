@@ -256,6 +256,124 @@ export function findItem(state: GameState, itemId: string): ItemLocation | null 
 
 <hr>
 
+### Tool Handler Definitions
+This section will cover how we define tool handlers that interact with the GameState and provide useful information to Claude for narration.
+<b>NOTE: always validate action BEFORE updating state.</b>
+
+
+
+<details><summary><b>- Show Tool Handler Definitions & Custom Responses </b></summary>
+
+#### Custom Tool Responses
+Custom error codes and error categories have been define. These will help Claude understand why a tool has failed - enabling it to dynamically produce an appropriate response to the player. 
+
+
+- Error Types:
+```
+// response from the handler - tells claude what went wrong when calling a tool
+export type ErrorCategory = 
+    | "invalid_input" // request itself was wrong - fix input and maybe retry
+    | "rule";         // request was valid, but game says no - narrate the failure
+
+// types of error codes to provide
+export type ErrorCode =
+    | "UNKNOWN_ITEM"
+    | "NOT_HERE"        // item/fixture is in a different room
+    | "NOT_CARRIED"     // item isn't on person
+    | "ALREADY_CARRIED" // pickup an item that exists in inventory
+    | "INVENTORY_FULL"
+  ```
+
+- Response Types:
+```
+// outcome of a toolcall
+export type ToolOutcome =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; code: ErrorCode; category: ErrorCategory; message: string };
+
+// successful tool call containing data
+export function ok(data: Record<string, unknown>): ToolOutcome {
+  return { ok: true, data };
+}
+
+// failing tool call with error code and custom message
+export function fail(code: ErrorCode, message: string): ToolOutcome {
+  return { ok: false, code, category: CATEGORY[code], message };
+}
+```
+
+#### Tool Definitions
+Tools relating to inventory management have been defined, these take an input of the immutable 'World' object, the mutable 'GameState' object and an input (in most cases), providing a response based on the input and state.
+
+
+- checkInventory
+  
+Doesn't take an input, doesn't have a custom error case. Should always return the contents of the player's inventory as an array of items.
+
+```
+export type CheckInventoryInput = Record<string, never>;
+
+// return string of items in the player's inventory
+export function checkInventory(world: World, state: GameState, _input: CheckInventoryInput): ToolOutcome {      // '_' prefix: "deliberately unused"
+  const items = state.player.inventory.map((id) => ({ id, name: world.items[id]!.name }));
+  return ok({
+    items,
+    slots_used: items.length,
+    max_slots: state.player.maxSlots,
+  });
+}
+```
+
+- pickUp
+  
+Takes an input string of the item_id to pick up.
+As you can see each of the cases where our handler may fail have been given a custom error message to give claude context for the failing response.
+
+```
+export interface PickUpInput {
+  item_id: string;
+}
+
+export function pickUp(world: World, state: GameState, { item_id }: PickUpInput): ToolOutcome {
+  // Check everything before updating state.
+  const item = world.items[item_id];        // fastest way to check if an item exists in the game NOTE may have to change if we want dynamic item creation
+  if (!item) {
+    return fail("UNKNOWN_ITEM", `No item with id "${item_id}" exists.`);
+  }
+
+  // cannot pickup an item already in inventory
+  const location = findItem(state, item_id);
+  if (location?.where === "inventory") {
+    return fail("ALREADY_CARRIED", `${item.name} is already in the inventory.`);    // error messages are written for Claude to understand
+  }
+  // cannot pick up an item in a different room
+  if (location?.where !== "room" || location.roomId !== state.player.roomId) {
+    return fail("NOT_HERE", `${item.name} is not in the current room.`);
+  }
+  // cannot pick up an item if inventory is full
+  if (state.player.inventory.length >= state.player.maxSlots) {
+    return fail("INVENTORY_FULL", `Inventory is full (${state.player.maxSlots} slots).`);
+  }
+
+  // if passes all checks - update state
+  const room = state.rooms[state.player.roomId]!;
+  room.items = room.items.filter((id) => id !== item_id);   // remove all picked up item from room
+  state.player.inventory.push(item_id);                     // add item to player inventory
+
+  // pickUp action was successful 
+  return ok({                           
+    picked_up: { id: item.id, name: item.name },
+    slots_used: state.player.inventory.length,
+    max_slots: state.player.maxSlots,
+  });
+}
+```
+
+
+</details>
+
+<hr> 
+
 #### System Prompt
 
 "You may add sensory atmosphere (sounds, smells, light, temperature). Only name objects the player could interact with if they appear in a tool result. Never mention exits, items or fixtures that weren’t returned."
