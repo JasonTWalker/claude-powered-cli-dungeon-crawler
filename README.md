@@ -63,3 +63,39 @@ Candidates for logging include:
 
 ### Game Architecture
 
+
+#### Overarching "Rooms" JSON:
+
+```
+{
+  "rooms": [
+    {
+      "id": "entrance",
+      "name": "Crumbling Entrance",
+      "description": "A wrought iron gate lies to the North, locked with a rusty iron padlock. Perhaps something heavy can break it.",
+      "dark": false,
+      "exits": {
+        "north": { "to": "hall", "requiresFlag": "gate_open" },
+      },
+      "items": ["torch", "lighter", "brick"]
+      "fixtures": [
+        {
+          "id": "iron_gate",
+          "name": "Iron Gate",
+          "description": "Rusted shut, with a heavy padlock.",
+          "state": ["locked"]
+        }
+      ],
+      "atmosphere": ["dripping water", "smell of damp stone", "faint draught from the north"]
+    }
+  ]
+}
+
+```
+#### System Prompt
+
+"You may add sensory atmosphere (sounds, smells, light, temperature). Only name objects the player could interact with if they appear in a tool result. Never mention exits, items or fixtures that weren’t returned."
+This should ideally prevent Claude from inventing features that don't exist, pulling from the atmosphere and items field in the 'rooms' schema above. However this isn't guaranteed - safeguards will be provided by strict requirements on tool usage - however flavour text could be impacted and derail the user's experience. For example, they keep trying to pull a lever that Claude invented in the description, but the tool_result is returning an error flagged response that such a lever doesn't exist. 
+
+
+
