@@ -15,7 +15,7 @@
     "dev": "tsx --env-file=.env src/index.ts",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "sdkexperiment": "tsx --env-file=.env src/sdkexperimentation/sdkexperiment.ts"
+    "roundtrip": "tsx --env-file=.env src/sdkexperimentation/roundtripscratch.ts"
     
   },
   "repository": {
