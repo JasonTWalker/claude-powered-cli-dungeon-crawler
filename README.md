@@ -277,6 +277,7 @@ Custom error codes and error categories have been define. These will help Claude
 export type ErrorCategory = 
     | "invalid_input" // request itself was wrong - fix input and maybe retry
     | "rule";         // request was valid, but game says no - narrate the failure
+    | "system";       // handler thrown expection, bug to fix 
 
 // types of error codes to provide
 export type ErrorCode =
@@ -285,6 +286,9 @@ export type ErrorCode =
     | "NOT_CARRIED"     // item isn't on person
     | "ALREADY_CARRIED" // pickup an item that exists in inventory
     | "INVENTORY_FULL"
+    | "UNKNOWN_TOOL"
+    | "INVALID_INPUT"
+    | "INTERNAL_ERROR"
   ```
 
 - Response Types:
