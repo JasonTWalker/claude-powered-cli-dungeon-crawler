@@ -2,9 +2,33 @@ import type { World } from "../game/world.js";
 import { findItem, type GameState } from "../game/state.js";
 import { fail, ok, type ToolOutcome } from "./types.js";
 
-export interface PickUpInput {
-  item_id: string;
-}
+import type Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+
+// What the handler accepts, checked at runtime
+export const PickUpInputSchema = z.object({ item_id: z.string() }).strict();
+export type PickUpInput = z.infer<typeof PickUpInputSchema>;
+
+// What Claude is told about the tool
+export const pickUpDefinition: Anthropic.Messages.Tool = {
+  name: "pick_up",
+  description:
+    "Pick up an item from the floor of the player's current room and put it in their inventory. " +
+    "Use this when the player wants to take, grab, collect or pick up something. " +
+    "Only items listed as on the floor in the game state can be picked up.",
+  strict: true,
+  input_schema: {
+    type: "object",
+    properties: {
+      item_id: {
+        type: "string",
+        description: 'The id of the item to pick up, as shown in the game state, e.g. "torch".',
+      },
+    },
+    required: ["item_id"],
+    additionalProperties: false,
+  },
+};
 
 export function pickUp(world: World, state: GameState, { item_id }: PickUpInput): ToolOutcome {
   // Check everything before updating state.
