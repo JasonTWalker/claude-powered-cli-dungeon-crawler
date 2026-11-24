@@ -92,7 +92,7 @@ messages.push({
       content: JSON.stringify(
         outcome.ok ? outcome.data : { code: outcome.code, category: outcome.category, message: outcome.message },
       ),
-      is_error: false      // is_error true if outcome of tool handler was fail
+      is_error: !outcome.ok      // is_error true if outcome of tool handler was fail
     },
   ],
 });
