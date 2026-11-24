@@ -1,6 +1,6 @@
 import type { World } from "../game/world.js";
 import { findItem, type GameState } from "../game/state.js";
-import { fail, ok, type ToolOutcome } from "./types.js";
+import { defineTool, fail, ok, type ToolOutcome } from "./types.js";
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
@@ -63,3 +63,10 @@ export function pickUp(world: World, state: GameState, { item_id }: PickUpInput)
     max_slots: state.player.maxSlots,
   });
 }
+
+
+export const pickUpTool = defineTool({
+  definition: pickUpDefinition,
+  inputSchema: PickUpInputSchema,
+  handler: pickUp
+})
