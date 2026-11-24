@@ -737,6 +737,127 @@ Claude answered without calling a tool. Nothing to run.
 
 </details>
 
+<hr>
+
+### Hard Typing our Tools & Building a Registry
+We need to place rigid guards on how we define our tools in order to promote extensibility - we want our newly created tools to fail at compile time if they are specified wrong. 
+
+
+<details><summary>- Show Hard Typing Tools & Registry </summary>
+
+#### Typing our Tools
+
+Within types.ts we have used Zod to rigidly define our schemas in order to define a single interface that keeps all three parts of a tool in one object:
+- definition: what Claude sees (JSON Schema, description)
+- inputSchema: what code checks (zod)
+- handler: what actually happens in code (e.g. pickUp moves item from floor to player's inventory)
+
+```
+// Generic value 'S' is the Zod schema, z.infer<S> makes handler's input type follow that schema. 
+// a handler can't accept a different shape than the one its schema validates
+export interface GameTool<S extends z.ZodType> {
+  definition: Anthropic.Messages.Tool;   // tool definition
+  inputSchema: S;
+  handler: (world: World, state: GameState, input: z.infer<S>) => ToolOutcome;
+}
+
+// any used as tools have different input types, this allows for validation of all different types of input schema. 
+export type AnyGameTool = GameTool<any>;
+
+
+// returns what you pass in - does nothing but force TypeScript to infer S and validate schema and handler agree
+// allows for a container of definition, inputSchema and handler - one point of reference
+export function defineTool<S extends z.ZodType>(tool: GameTool<S>): GameTool<S> {
+  return tool;
+}
+```
+
+
+Now within each tool
+- Define inputSchema with Zod:
+```
+export const CheckInventoryInputSchema = z.object({}).strict();
+export type CheckInventoryInput = z.infer<typeof CheckInventoryInputSchema>;
+```
+
+- Export defineTool:
+```
+export const checkInventoryTool = defineTool({
+  definition: {
+    name: "check_inventory",
+    description:
+      "List exactly what the player is carrying and how many inventory slots are used. " +
+      "Use this when the player asks what they have, checks their pack, or asks how much more they can carry.",
+    strict: true,
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false },
+  },
+  inputSchema: CheckInventoryInputSchema,
+  handler: checkInventory,
+});
+```
+
+#### Building the Registry
+Claude needs to know every definition on each API call, and how to turn a tool_use block into the right handler call. This is achieved using a registry - it knows every tool and the corresponding handler to use. 
+The agentic loop never imports a single tool, it talks to registry.definitions and registry.dispatch(...).
+
+Validation before modification is handled here too, with layered guards before the handler is called. It first checks the tool exists, then it checks the input is valid and matches the expected schema before calling the handler. Each guard provides its own error message as a result of the tool call, so Claude knows what went wrong. <b>EVERY DISPATCH HAS A RESULTING ToolOutcome</b>
+
+<img width="1070" height="546" alt="image" src="https://github.com/user-attachments/assets/07019f4f-1832-43f9-a4c0-686be1d0218a" />
+
+The registry uses the factory pattern, so the real game can use existing tools, whereas the test suite can invent tools and ensure that the error handling works as expected by substituting their own. 
+
+<details><summary>Show registry code</summary>
+
+   ```
+// map tool definitions to their dispatch
+export interface Registry {
+  definitions: Anthropic.Messages.Tool[];
+  dispatch: (world: World, state: GameState, name: string, input: unknown) => ToolOutcome;
+}
+
+// map each passed tool to a toolRegistry
+export function createRegistry(tools: AnyGameTool[]): Registry {
+  const byName = new Map<string, AnyGameTool>();
+  for (const tool of tools) {
+    const name = tool.definition.name;
+    if (byName.has(name)) throw new Error(`Duplicate tool name: ${name}`);
+    byName.set(name, tool);
+  }
+
+  // never throws an error that would interrupt the game - only ToolOutcomes that let Claude handle the error case
+  function dispatch(world: World, state: GameState, name: string, input: unknown): ToolOutcome {
+    const tool = byName.get(name);
+    if (!tool) return fail("UNKNOWN_TOOL", `No tool named "${name}" exists.`);
+
+    // turn 'unknown' parameter into the type of input expected by the tool
+    const parsed = tool.inputSchema.safeParse(input);
+    if (!parsed.success) {
+      return fail("INVALID_INPUT", `Invalid input for ${name}: ${z.prettifyError(parsed.error)}`);
+    }
+
+    // if handler crashes it becomes an INTERNAL_ERROR bug - shows up in terminal so you know where to fix
+    try {
+      return tool.handler(world, state, parsed.data);
+    } catch (err) {
+      console.error(`[bug] ${name} threw:`, err);
+      return fail("INTERNAL_ERROR", "Something went wrong in the game itself. The action did not happen.");
+    }
+  }
+
+  // map definitions to dispatch
+  return { definitions: tools.map((t) => t.definition), dispatch };
+}
+
+// export the registry for the game
+export const registry = createRegistry([checkInventoryTool, examineItemTool, pickUpTool, dropTool]);
+```
+
+</details>
+</details>
+
+<hr>
+
+### Found Issues and Learnings
 
 <details><summary><b>- Show Found Issues and Learnings</b></summary>
 
