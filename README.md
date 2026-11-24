@@ -167,6 +167,9 @@ Fixtures in this case defines items that are a part of the room that can be inte
 }
 ```
 
+
+
+
 #### Schema Enforcement
 
 Enforcing a rigid schema to ensure errors don't creep into the game is done using the Zod module. This allows you to define the schema that each Room, Fixture, and Item should follow - and pass these through the validator before building the world. If an invalid schema is found, then the world doesn't build and a suitable error message is shown. ID validation is also done to ensure any item to be added to the "items" array of a room object is actually defined and exists. 
@@ -374,7 +377,7 @@ export function pickUp(world: World, state: GameState, { item_id }: PickUpInput)
 
 <hr> 
 
-### CLI 'Offline' Paser
+### CLI 'Offline' Parser
 
 This defined CLI parser will be the basic implementation of verb, noun typical of these kinds of games. It will be rigidly typed, with some flexibility - e.g. typing "inventory" functions the same as typing "inv", or "take" = "get", "grab", "pick up", etc. This wont be conducive to a good gameplay experience though, and after the SDK Agent has been implemented to parse commands this legacy parser will serve as a way to test gameplay actions and the rules table. 
 
@@ -453,6 +456,76 @@ You see: Iron Gate
 On the floor: Wooden Torch, Brass Lighter, Stale Bread
 ```
 
+
+</details>
+
+<hr>
+
+
+### Basic Agentic Round Trip w/ Tool Use:
+
+The core functionality of this game aims to have Claude serve as both narrator/dungeon master and as input parser - deciding what tool best corresponds with user action.
+
+#### pickUp Tool Schema Definition & Application
+
+<details><summary>- Show Schema Definition </summary>
+
+The actual pickUp function defined previously doesn't need to change - it simply takes in the World, the GameState and the ID of the item to pickup. What we need to do is define a tool_use Schema that Claude knows to call when the user indicates they want to pick something up.
+
+- Schema Definition: 
+
+strict mode has been set to true (https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use), this is to guarantee that our tool inputs match our defined schema - which you can see here is "item_id" of type String. The description is natural language that lets Claude know when to use this tool - in the future as more tools are defined this may become a more strict definition, with examples of when and when not to use the tool. This [redefinition](https://youtu.be/yt2lLWxxV9w?si=rykmWvQg71VrTyH1) will be handled after playtesting once more tools have been defined - if the model keeps getting confused about which tool to use.
+```
+// What the handler accepts, checked at runtime
+export const PickUpInputSchema = z.object({ item_id: z.string() }).strict();
+export type PickUpInput = z.infer<typeof PickUpInputSchema>;
+
+// What Claude is told about the tool
+export const pickUpDefinition: Anthropic.Messages.Tool = {
+  name: "pick_up",
+  description:
+    "Pick up an item from the floor of the player's current room and put it in their inventory. " +
+    "Use this when the player wants to take, grab, collect or pick up something. " +
+    "Only items listed as on the floor in the game state can be picked up.",
+  strict: true,
+  input_schema: {
+    type: "object",
+    properties: {
+      item_id: {
+        type: "string",
+        description: 'The id of the item to pick up, as shown in the game state, e.g. "torch".',
+      },
+    },
+    required: ["item_id"],
+    additionalProperties: false,
+  },
+};
+```   
+</details>
+
+<details><summary><b>- Show Round Trip Definition </b></summary>
+Now we have our tool definition, we need a way to communicate with the model and tell it to use it. This way we can explore and note any potential issues that may arise in the future, which will be noted at the bottom of this section. 
+
+
+</details>
+
+
+<details><summary><b>- Show Found Issues and Learnings</b></summary></details>
+
+#### Known and Unknown Context Management
+
+In this implementation the context Claude is given is the room name, the id's and names of items on the ground, and what the player is currently carrying. The issue with this is that where context is missing Claude is liable to invent it. An example of this is the torch that's on the ground - in the items.json it is defined as having
+  ```
+      "state": { "lit": false }
+  ```
+however as Claude doesn't see this information it may make a narrative decision to describe the torch as lit. This will be rectified in the future by passing state into the prompt alongside the item with the 'describe' function. Another consideration is to add two more array[string] properties to the items schema, with known_properties and unknown_properties. known_properties such as "unlit" will be passed into Clade as context, and unknown_properties such as "cursed" will be hidden, so as to not reveal this to the player accidentally. 
+
+#### Parallel Tool Usage
+The way this roundtrip is defined, the second response comes after tool_results is appended to the messages and sent back to Claude. However, if the player says spmething like "pickup the torch and the bread" Claude will call the pickUp tool twice. This is a problem, as now there is a tool_use block without a correspondeing tool_result block following it:
+```
+BadRequestError: 400 {"type":"error","error":{"type":"invalid_request_error","message":"messages.2: `tool_use` ids were found without `tool_result` blocks immediately after: toolu_01G9hM85NUFpPd2EyGqooqJe. Each `tool_use` block must have a corresponding `tool_result` block in the next message."},"request_id":"req_011ChMvZMKptQdD7aRiAD4y9"}
+```
+This will be rectified in the future by using the Claude SDK directly to support parallel tool usage, but this 400 BadRequestError is worth nothing. 
 
 </details>
 
