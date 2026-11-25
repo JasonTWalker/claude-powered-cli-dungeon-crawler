@@ -861,6 +861,116 @@ export const registry = createRegistry([checkInventoryTool, examineItemTool, pic
 
 <hr>
 
+### Agentic Tool Usage Loop
+Now that we have defined our tool Registry, and our tool definitions and handlers - we need to define how the model interacts with this when recieving a user prompt. 
+
+<details><summary><b>- Show Agentic Tool Loop Definitions</b></summary>
+
+#### GameState Context Management and Prompt Injection Defence
+For Claude to have an updated model of the current GameState after each action, we attach it within XML tags outlined before to the beginning of each typed player input. However, we also need to manage the player's input so that they can't pass in their own XML tags and change or add to this descriptive GameState
+
+<details><summary>Show Code Definitions</summary>
+
+##### Snapshot Definition
+
+```
+// returns a string denoting item name and any optional flags given an item_id
+function describeItem(world: World, state: GameState, id: string): string {
+  const flags = Object.entries(state.itemStates[id] ?? {})
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(", ");
+  return `${id} (${world.items[id]!.name}${flags ? `, ${flags}` : ""})`;
+}
+
+
+// uses the world and gamestate to build the snapshot, returning a string text block for the user input to be appended to
+export function buildSnapshot(world: World, state: GameState): string {
+  const room = world.rooms[state.player.roomId]!;
+  const roomState = state.rooms[room.id]!;
+  const list = (ids: string[]) => ids.map((id) => describeItem(world, state, id)).join(", ") || "nothing";
+
+  return [
+    "<game_state>",
+    `Room: ${room.name}. ${room.description}`,
+    `Fixtures: ${room.fixtures.map((f) => f.name).join(", ") || "none"}`,
+    `On the floor: ${list(roomState.items)}`,
+    `Carrying: ${list(state.player.inventory)}`,
+    "</game_state>",
+  ].join("\n");
+}
+```
+
+##### Player Input Management
+
+```
+// Remove angled brackets from the player input, to prevent against a form of prompt injection where the player may try to invent their own <game_state>
+// or otherwise
+export const MAX_INPUT_LENGTH = 400;            // cap message length to reduce token cost and also those comically long "DAN" jailbreak scripts from 2023
+
+export function wrapPlayerInput(text: string): string {
+    const cleaned_input = text.slice(0, MAX_INPUT_LENGTH).replace(/[<>]/g, "");
+    return `<player_input>${cleaned_input}</player_input>`;
+}
+```
+
+</details>
+
+#### Loop Definitions
+Now we want our Agent to act in a loop when necessary - for example. If the user asks to pickup two or more items at once - two tool_use blocks will be in the assistant response. The user response needs to contain a tool_result block for each of these. 
+
+To aid in the development of this, we define some new Object types to collate data together:
+
+##### CallModel
+Takes in message creation params and returns an output of the Anthropic API message response. This is dependency injection - the real model will be called during the game, though for testing a fake model can be defined here and we define our responses to test error handling and otherwise.
+
+```
+// Loop never creates a client, CallModel takes params and returns Claude's response
+// the real game uses the API here - but tests don't have to
+// DEPENDENCY INJECTION
+export type CallModel = (
+  params: Anthropic.Messages.MessageCreateParamsNonStreaming,
+) => Promise<Anthropic.Messages.Message>;
+
+```
+
+##### TurnContext
+Everything a single conversational turn needs. The model to prompt, the game World, the current GameState, the tool registry, and the message history up to that point.
+```
+// single object containing everything a single turn needs
+// state and history are mutated - registry, world are immutable and hold a static reference
+export interface TurnContext {
+  callModel: CallModel;
+  model: string;
+  world: World;
+  state: GameState;
+  registry: Registry;
+  history: Anthropic.Messages.MessageParam[];
+  debug?: (line: string) => void;
+}
+
+```
+###### TurnResult
+As above, but the expected result of an executed turn. The text field should always be narrative - passing the conversational turn back to the user for their next action. This is why fallback text is used - if the tool fails or narrative text isn't produced, the assistant response needs t say SOMETHING. That's why the fallback text is intentionally vague. 
+```
+// what a turn gives back, narration and usage
+export interface TurnResult {
+  text: string;
+  rounds: number;
+  usage: { input: number; output: number };
+}
+```
+
+
+
+
+</details>
+
+
+
+
+
+<hr>
+
 ### Found Issues and Learnings
 
 <details><summary><b>- Show Found Issues and Learnings</b></summary>
