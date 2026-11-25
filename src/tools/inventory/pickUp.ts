@@ -1,6 +1,6 @@
-import type { World } from "../game/world.js";
-import { findItem, type GameState } from "../game/state.js";
-import { defineTool, fail, ok, type ToolOutcome } from "./types.js";
+import type { World } from "../../game/world.js";
+import { findItem, type GameState } from "../../game/state.js";
+import { defineTool, fail, ok, type ToolOutcome } from "../types.js";
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";

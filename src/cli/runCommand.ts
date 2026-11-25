@@ -1,11 +1,11 @@
 import type { World } from "../game/world.js";
 import type { GameState } from "../game/state.js";
 import type { ToolOutcome } from "../tools/types.js";
-import { pickUp } from "../tools/pickUp.js";
-import { drop } from "../tools/drop.js";
-import { checkInventory } from "../tools/checkInventory.js";
+import { pickUp } from "../tools/inventory/pickUp.js";
+import { drop } from "../tools/inventory/drop.js";
+import { checkInventory } from "../tools/inventory/checkInventory.js";
 import { resolveItemId, type Command } from "./parser.js";
-import { examineItem } from "../tools/examineItem.js";
+import { examineItem } from "../tools/inventory/examineItem.js";
 import { describeRoom } from "./describeRoom.js";
 
 const HELP = [

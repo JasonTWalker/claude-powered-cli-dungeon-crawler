@@ -3,10 +3,10 @@ import { z } from "zod";
 import type { World } from "../game/world.js";
 import type { GameState } from "../game/state.js";
 import { fail, type AnyGameTool, type ToolOutcome } from "./types.js";
-import { pickUpTool } from "./pickUp.js";
-import { dropTool } from "./drop.js";
-import { checkInventoryTool } from "./checkInventory.js";
-import { examineItemTool } from "./examineItem.js";
+import { pickUpTool } from "./inventory/pickUp.js";
+import { dropTool } from "./inventory/drop.js";
+import { checkInventoryTool } from "./inventory/checkInventory.js";
+import { examineItemTool } from "./inventory/examineItem.js";
 
 
 // map tool definitions to their dispatch

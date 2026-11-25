@@ -1,6 +1,6 @@
-import type { World } from "../game/world.js";
-import type { GameState } from "../game/state.js";
-import { defineTool, ok, type ToolOutcome } from "./types.js";
+import type { World } from "../../game/world.js";
+import type { GameState } from "../../game/state.js";
+import { defineTool, ok, type ToolOutcome } from "../types.js";
 import { z } from "zod";
 
 export const CheckInventoryInputSchema = z.object({}).strict();
