@@ -917,10 +917,13 @@ export function wrapPlayerInput(text: string): string {
 
 #### Loop Definitions
 Now we want our Agent to act in a loop when necessary - for example. If the user asks to pickup two or more items at once - two tool_use blocks will be in the assistant response. The user response needs to contain a tool_result block for each of these. 
+To aid in the development of this, we define some new Object types to collate data together.
 
-To aid in the development of this, we define some new Object types to collate data together:
+
+<details><summary>Show Loop Object Definitions</summary>
 
 ##### CallModel
+
 Takes in message creation params and returns an output of the Anthropic API message response. This is dependency injection - the real model will be called during the game, though for testing a fake model can be defined here and we define our responses to test error handling and otherwise.
 
 ```
@@ -934,6 +937,7 @@ export type CallModel = (
 ```
 
 ##### TurnContext
+
 Everything a single conversational turn needs. The model to prompt, the game World, the current GameState, the tool registry, and the message history up to that point.
 ```
 // single object containing everything a single turn needs
@@ -949,8 +953,11 @@ export interface TurnContext {
 }
 
 ```
-###### TurnResult
+
+##### TurnResult
+
 As above, but the expected result of an executed turn. The text field should always be narrative - passing the conversational turn back to the user for their next action. This is why fallback text is used - if the tool fails or narrative text isn't produced, the assistant response needs t say SOMETHING. That's why the fallback text is intentionally vague. 
+
 ```
 // what a turn gives back, narration and usage
 export interface TurnResult {
@@ -958,10 +965,223 @@ export interface TurnResult {
   rounds: number;
   usage: { input: number; output: number };
 }
+
+export const FALLBACK_TEXT = "The dungeon falls strangely silent...";
+```
+   
+</details>
+
+#### The Actual Loop
+
+When the player makes an input, the model needs to know know of any tools to call, run them, get a result block to know if the state was changed ( handler called and successful ). Then, the assistant should produce a text response narrating what happened.
+This will be structured in code blocks, with the full uninterrupted code definition at the end - alongside example CLI output.
+
+<details><summary> Show Tool Use Loop Definition </summary>
+
+- Define MAX_TOOL_ROUNDS, the max number of API calls per turn to prevent infinite model looping.
+```
+export const MAX_TOOL_ROUNDS = 5;
 ```
 
+- Define the runTurn parameters, of type TurnContext and String playerText - with an output promise of TurnResult, all defined above.
+Record the length of the history at the start of this turn, this allows for rollback if the turn fails. 
+```
+// create an API request and await a response for the turn
+export async function runTurn(ctx: TurnContext, playerText: string): Promise<TurnResult> {
+  const { callModel, model, world, state, registry, history } = ctx;
+  
+  // if no logger passed - use one that does nothing - null object pattern
+  const debug = ctx.debug ?? (() => {});
+
+  // how long history was before this turn - allows try/catch to rety a failure from this point if needed
+  const startLength = history.length;
+  const usage = { input: 0, output: 0 };        // running cost total
+
+```
+
+- Begin the turn, add the user's prompt to the message history
+```
+
+  // turn begins:
+  state.turn += 1;
+  history.push({
+    role: "user",
+    content: `${buildSnapshot(world, state)}\n\n${wrapPlayerInput(playerText)}`,        // fresh snapshot of current game state + user input
+  });
+```
+
+- The loop, wrapped in a try/catch block.
+On the first iteration, the latest message in the history is the user's input prompt, with a snapshot of the game state.
+Tally the token usage from the response and record the stop_reason for debugging.
+```
+  // the loop
+  try {
+    // each round pass is one API call - the loop ends early once Claude stops asking for tools
+    for (let round = 1; round <= MAX_TOOL_ROUNDS; round++) {
+      const lastRound = round === MAX_TOOL_ROUNDS;
 
 
+      // api request
+      const response = await callModel({
+        model,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools: registry.definitions,        // all tools in registry sent on every call
+        ...(lastRound ? { tool_choice: { type: "none" as const } } : {}),           // forbid tools on the final round so it ends with narration
+        messages: history,                  // stateless API so history is the entire conversation 
+      });
+
+
+      // tally usage
+      usage.input += response.usage.input_tokens;
+      usage.output += response.usage.output_tokens;
+
+      // show stop reason if debug
+      debug(`[round ${round}] stop_reason=${response.stop_reason}`);
+```
+- If the stop reason isn't tool_use, then Claude is finished (isn't waiting for another user: tool_response block)
+Presumably, the content of this block is narrative text - so add that to the history and exit the loop - it is now the user's turn to prompt again. IF there's no text available, use the fallback text as the assistant message can't be empty. 
+```
+      if (response.stop_reason !== "tool_use") {
+        if (response.stop_reason === "max_tokens") debug("[warn] reply was cut off by max_tokens");
+        const text = extractText(response.content) || FALLBACK_TEXT;
+        // Store only the text, so no unanswered tool_use block can be left in history
+        history.push({ role: "assistant", content: [{ type: "text", text }] });
+        return { text, rounds: round, usage };
+      }
+```
+- Otherwise, Claude called a tool - and needs responses to ALL of the tool_usage blocks (multiple can be in one conversational turn - e.g. pick up torch and lighter)
+Iterate over each block in the response, and for each tool_use block call the corresponding handler and record the outcome and tool_use ID to build the user: tool_use message.
+```
+     // add tool_use block to history unchanged
+      history.push({ role: "assistant", content: response.content });
+
+      // tool results 
+      const results: Anthropic.Messages.ToolResultBlockParam[] = [];
+      // for each tool_use block, use the tool
+      for (const block of response.content) {
+        if (block.type !== "tool_use") continue;
+        // call the handler from the registry using the currently evaluated tool - recording ToolOutcome
+        const outcome = registry.dispatch(world, state, block.name, block.input);
+        debug(`  → ${block.name} ${JSON.stringify(block.input)}`);
+        debug(`  ← ${outcome.ok ? "OK " + JSON.stringify(outcome.data) : `${outcome.code}: ${outcome.message}`}`);
+
+        // add ToolOutcome to results block
+        results.push(toToolResult(block.id, outcome));
+      }
+
+      // add all tool_results to the history
+      history.push({ role: "user", content: results });
+      // on next loop, the model now sees the tool results as the last message, and likely responds with narrative text - so it exits early at the top of the next loop
+    }
+```
+- IF the try/catch block errors out - undo the incremented state.turn value, and truncate the history back to before runTurn was called
+```
+  } catch (err) {
+    //  reduce turn to rollback turn alongside history
+    state.turn -= 1;
+    history.length = startLength; // roll back, so history is still valid for the next turn. Removes everything added this turn
+    throw err;                     // game controller or Index decides how to report or log the error
+  }
+```
+
+<details><summary> Show Full runTurn Definition</summary>
+   
+```
+// create an API request and await a response for the turn
+export async function runTurn(ctx: TurnContext, playerText: string): Promise<TurnResult> {
+  const { callModel, model, world, state, registry, history } = ctx;
+  
+  // if no logger passed - use one that does nothing - null object pattern
+  const debug = ctx.debug ?? (() => {});
+
+  // how long history was before this turn - allows try/catch to rety a failure from this point if needed
+  const startLength = history.length;
+  const usage = { input: 0, output: 0 };        // running cost total
+
+
+  // turn begins:
+  state.turn += 1;
+  history.push({
+    role: "user",
+    content: `${buildSnapshot(world, state)}\n\n${wrapPlayerInput(playerText)}`,        // fresh snapshot of current game state + user input
+  });
+
+
+  // the loop
+  try {
+    // each round pass is one API call - the loop ends early once Claude stops asking for tools
+    for (let round = 1; round <= MAX_TOOL_ROUNDS; round++) {
+      const lastRound = round === MAX_TOOL_ROUNDS;
+
+
+      // api request
+      const response = await callModel({
+        model,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools: registry.definitions,        // all tools in registry sent on every call
+        ...(lastRound ? { tool_choice: { type: "none" as const } } : {}),           // forbid tools on the final round so it ends with narration
+        messages: history,                  // stateless API so history is the entire conversation 
+      });
+
+
+      // tally usage
+      usage.input += response.usage.input_tokens;
+      usage.output += response.usage.output_tokens;
+
+      // show stop reason if debug
+      debug(`[round ${round}] stop_reason=${response.stop_reason}`);
+
+      // ── Claude is finished (or stopped for another reason) ──
+      if (response.stop_reason !== "tool_use") {
+        if (response.stop_reason === "max_tokens") debug("[warn] reply was cut off by max_tokens");
+        const text = extractText(response.content) || FALLBACK_TEXT;
+        // Store only the text, so no unanswered tool_use block can be left in history
+        history.push({ role: "assistant", content: [{ type: "text", text }] });
+        return { text, rounds: round, usage };
+      }
+
+      // ── Claude wants tools: run ALL of them, answer in ONE message ──
+
+      // add tool_use block to history unchanged
+      history.push({ role: "assistant", content: response.content });
+
+      // tool results 
+      const results: Anthropic.Messages.ToolResultBlockParam[] = [];
+      // for each tool_use block, use the tool
+      for (const block of response.content) {
+        if (block.type !== "tool_use") continue;
+        // call the handler from the registry using the currently evaluated tool - recording ToolOutcome
+        const outcome = registry.dispatch(world, state, block.name, block.input);
+        debug(`  → ${block.name} ${JSON.stringify(block.input)}`);
+        debug(`  ← ${outcome.ok ? "OK " + JSON.stringify(outcome.data) : `${outcome.code}: ${outcome.message}`}`);
+
+        // add ToolOutcome to results block
+        results.push(toToolResult(block.id, outcome));
+      }
+
+      // add all tool_results to the history
+      history.push({ role: "user", content: results });
+      // on next loop, the model now sees the tool results as the last message, and likely responds with narrative text - so it exits early at the top of the next loop
+    }
+
+    // Only reachable if the last round somehow still asked for tools
+    // should be unreachable due to the lastRound variable - but closes with assistant message to keep alternative conversation valid.
+    history.push({ role: "assistant", content: [{ type: "text", text: FALLBACK_TEXT }] });
+    return { text: FALLBACK_TEXT, rounds: MAX_TOOL_ROUNDS, usage };
+  } catch (err) {
+    //  reduce turn to rollback turn alongside history
+    state.turn -= 1;
+    history.length = startLength; // roll back, so history is still valid for the next turn. Removes everything added this turn
+    throw err;                     // game controller or Index decides how to report or log the error
+  }
+}
+
+```
+
+</details>
+</details>
 
 </details>
 
