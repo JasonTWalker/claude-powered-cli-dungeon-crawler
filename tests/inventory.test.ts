@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { pickUp } from "../src/tools/pickUp.js";
-import { drop } from "../src/tools/drop.js";
-import { examineItem } from "../src/tools/examineItem.js";
-import { checkInventory } from "../src/tools/checkInventory.js"
+import { pickUp } from "../src/tools/inventory/pickUp.js";
+import { drop } from "../src/tools/inventory/drop.js";
+import { examineItem } from "../src/tools/inventory/examineItem.js";
+import { checkInventory } from "../src/tools/inventory/checkInventory.js"
 import { newGame } from "./fixtures.js";
 
 describe("pickUp", () => {

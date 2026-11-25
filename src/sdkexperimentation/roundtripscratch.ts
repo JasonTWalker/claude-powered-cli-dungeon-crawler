@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadWorld } from "../game/world.js";
 import { createInitialState } from "../game/state.js";
-import { pickUp, pickUpDefinition, PickUpInputSchema } from "../tools/pickUp.js";
+import { pickUp, pickUpDefinition, PickUpInputSchema } from "../tools/inventory/pickUp.js";
 import { formatUsage } from "../agent/usage.js";
 
 const client = new Anthropic();

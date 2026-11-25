@@ -1,6 +1,6 @@
-import type { World } from "../game/world.js";
-import { findItem, type GameState } from "../game/state.js";
-import { defineTool, fail, ok, type ToolOutcome } from "./types.js";
+import type { World } from "../../game/world.js";
+import { findItem, type GameState } from "../../game/state.js";
+import { defineTool, fail, ok, type ToolOutcome } from "../types.js";
 import { z } from "zod";
 
 export const ExamineItemInputSchema = z.object({ item_id: z.string() }).strict();
