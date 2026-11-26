@@ -15,7 +15,8 @@
     "dev": "tsx --env-file=.env src/index.ts",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "roundtrip": "tsx --env-file=.env src/sdkexperimentation/roundtripscratch.ts"
+    "roundtrip": "tsx --env-file=.env src/sdkexperimentation/roundtripscratch.ts",
+    "game": "tsx --env-file=.env src/agentic-index.ts"
     
   },
   "repository": {
