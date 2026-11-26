@@ -1052,6 +1052,25 @@ Presumably, the content of this block is narrative text - so add that to the his
 ```
 - Otherwise, Claude called a tool - and needs responses to ALL of the tool_usage blocks (multiple can be in one conversational turn - e.g. pick up torch and lighter)
 Iterate over each block in the response, and for each tool_use block call the corresponding handler and record the outcome and tool_use ID to build the user: tool_use message.
+
+Formats our custom outcome responses into a tool_result block:
+```
+// convert ToolOutcome from Registry ( tool_use => handler/codeChange) to a Claude-readable tool_result block
+function toToolResult(toolUseId: string, outcome: ToolOutcome): Anthropic.Messages.ToolResultBlockParam {
+  return {
+    type: "tool_result",
+    tool_use_id: toolUseId,
+    content: JSON.stringify(
+      outcome.ok ? outcome.data : { code: outcome.code, category: outcome.category, message: outcome.message },
+    ),
+    is_error: !outcome.ok,
+  };
+}
+```
+
+
+
+
 ```
      // add tool_use block to history unchanged
       history.push({ role: "assistant", content: response.content });
@@ -1183,10 +1202,112 @@ export async function runTurn(ctx: TurnContext, playerText: string): Promise<Tur
 </details>
 </details>
 
+
+
+
+
 </details>
 
 
+### Implementing Tool Use within Game
+We need a loop that can repeatedly call the model, await a response, display it to the player, and then continue.
 
+<details><summary>Show Implementation Details</summary>
+
+- play function that passes user input into the above functions:
+```
+
+async function play(text: string): Promise<void> {
+  try {
+    const result = await runTurn(ctx, text);
+    console.log(result.text);
+    if (debugOn) console.log(dim(`[${result.rounds} round(s), ${result.usage.input} in / ${result.usage.output} out]`));
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      console.log(`(The dungeon's voice falters: API error ${err.status}. Try again.)`);
+    } else {
+      throw err;
+    }
+  }
+}
+```
+- define input interface:
+```
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "> " });
+```
+
+- define gameplay loop:
+The if(offline) conditional allows us to play with just the basic parser if we want to for exploratory testing purposes.
+```
+for await (const line of rl) {
+  const input = line.trim();
+
+  if (input === "/quit") break;
+  if (input === "/debug") {
+    debugOn = !debugOn;
+    console.log(dim(`[debug ${debugOn ? "on" : "off"}]`));
+  } else if (input) {
+    if (offline) {
+      const command = parseCommand(input);
+      console.log(command ? runCommand(world, state, command) : `I don't understand "${input}".`);
+    } else {
+      await play(input);
+    }
+  }
+```
+
+</details>
+
+<details><summary>Show Example Gameplay</summary>
+
+```
+$ npm run game -- --debug
+npm notice run claude-powered-cli-dungeon-crawler@1.0.0 game
+npm notice run tsx --env-file=.env src/agentic-index.ts --debug
+[type /quit to leave, /debug to toggle tool logs]
+[round 1] stop_reason=end_turn
+Moss-slick steps descend into a throat of darkness, and the air that rises from them is cold and smells of wet stone and old rot. Beside the iron gate, a wooden torch leans against the wall, a brass lighter lies near it, and a heel of stale bread sits on the damp flagstones.
+[1 round(s), 1467 in / 98 out]
+> grab the bread, the torch n the brs
+[round 1] stop_reason=tool_use
+  → pick_up {"item_id":"bread"}
+  ← OK {"picked_up":{"id":"bread","name":"Stale Bread"},"slots_used":1,"max_slots":4}
+  → pick_up {"item_id":"torch"}
+  ← OK {"picked_up":{"id":"torch","name":"Wooden Torch"},"slots_used":2,"max_slots":4}
+  → pick_up {"item_id":"lighter"}
+  ← OK {"picked_up":{"id":"lighter","name":"Brass Lighter"},"slots_used":3,"max_slots":4}
+[round 2] stop_reason=end_turn
+You scoop up the stale bread, the wooden torch, and the brass lighter. The gritty weight of them settles into your hands as the cold air from the steps breathes against your face.
+[2 round(s), 3757 in / 206 out]
+
+> examine all
+[round 1] stop_reason=tool_use
+  → examine_item {"item_id":"bread"}
+  ← OK {"id":"bread","name":"Stale Bread","description":"Hard enough to knock on.","state":{},"carried":true}
+  → examine_item {"item_id":"torch"}
+  ← OK {"id":"torch","name":"Wooden Torch","description":"A stick wrapped in oil-soaked rags.","state":{"lit":false},"carried":true}
+  → examine_item {"item_id":"lighter"}
+  ← OK {"id":"lighter","name":"Brass Lighter","description":"Dented, but it still sparks.","state":{},"carried":true}
+[round 2] stop_reason=end_turn
+The stale bread is hard enough to knock on. The wooden torch is a stick wrapped in oil-soaked rags, currently unlit. The brass lighter is dented, but it still sparks.
+[2 round(s), 4884 in / 238 out]
+
+> drop all
+[round 1] stop_reason=tool_use
+  → drop {"item_id":"bread"}
+  ← OK {"dropped":{"id":"bread","name":"Stale Bread"},"room":"Crumbling Entrance"}
+  → drop {"item_id":"torch"}
+  ← OK {"dropped":{"id":"torch","name":"Wooden Torch"},"room":"Crumbling Entrance"}
+  → drop {"item_id":"lighter"}
+  ← OK {"dropped":{"id":"lighter","name":"Brass Lighter"},"room":"Crumbling Entrance"}
+[round 2] stop_reason=end_turn
+You set the stale bread, the wooden torch, and the brass lighter back down on the damp flagstones. Your hands are empty again, and the cold breath from the steps curls around your ankles.
+[2 round(s), 6005 in / 204 out]
+
+>
+```
+
+</details>
 
 
 <hr>
@@ -1208,7 +1329,7 @@ The way this roundtrip is defined, the second response comes after tool_results 
 ```
 BadRequestError: 400 {"type":"error","error":{"type":"invalid_request_error","message":"messages.2: `tool_use` ids were found without `tool_result` blocks immediately after: toolu_01G9hM85NUFpPd2EyGqooqJe. Each `tool_use` block must have a corresponding `tool_result` block in the next message."},"request_id":"req_011ChMvZMKptQdD7aRiAD4y9"}
 ```
-This will be rectified in the future by using the Claude SDK directly to support parallel tool usage, but this 400 BadRequestError is worth nothing. 
+This will be rectified in the future by using the Claude SDK directly to support parallel tool usage, but this 400 BadRequestError is worth noting. 
 
 </details>
 
