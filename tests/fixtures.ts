@@ -37,3 +37,12 @@ export function newGame(maxSlots?: number): { world: World; state: GameState } {
   const world = testWorld();
   return { world, state: createInitialState(world, maxSlots) };
 }
+
+export function carrying(...ids: string[]) {
+  const game = newGame();
+  for (const room of Object.values(game.state.rooms)) {
+    room.items = room.items.filter((id) => !ids.includes(id));
+  }
+  game.state.player.inventory.push(...ids);
+  return game;
+}
