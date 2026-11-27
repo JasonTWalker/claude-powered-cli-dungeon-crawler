@@ -1334,6 +1334,26 @@ export type Requirement =
 Validation against the requirements is done sequentially has_item -> has_tag -> item_state.
 The Claude narrator should tell the player "you don't have a torch to light" before saying "you have nothing to light your nonexistent torch with".
 
+Zod Schema:
+```
+// ensure the failure message has at least one character
+// this is how Claude will understand a requirement failure from a ToolOutcome
+// so be somewhat descriptive for the narrator
+const FailMessage = z.string().min(1); 
+
+
+export const RequirementSchema = z.discriminatedUnion ("type", [            // as with { type: "has_item "} | { type: "has_tag "} in TypeScript
+    z.object({ type: z.literal("has_item"), itemId: IdSchema, failMessage: FailMessage }).strict(),
+    z.object({ type: z.literal("has_tag"), tag: TagSchema, failMessage: FailMessage }).strict(),
+    z.object({ 
+        type: z.literal("item_state"), itemId: IdSchema, key: TagSchema, value: z.boolean(), failMessage: FailMessage 
+    }).strict(),
+    z.object({
+        type: z.literal("fixture_affordance"), fixtureId: IdSchema, affordance: TagSchema, present: z.boolean(), failMessage: FailMessage,
+    }).strict(),
+]);   
+```
+
 </details>
 
 <hr>
