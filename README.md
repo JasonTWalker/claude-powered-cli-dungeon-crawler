@@ -1309,6 +1309,32 @@ You set the stale bread, the wooden torch, and the brass lighter back down on th
 
 </details>
 
+<hr>
+
+### Requirements Data Type & Rules Table
+
+#### Requirements
+
+Requirements are how we define if an action is successful.
+
+<details><summary>Show Requirements Details</summary>
+
+Consider lighting a torch - the player needs 3 things. 
+- The torch itself (has_item)
+- A way to light it, such as a lighter or a flint and steel (has_tag)
+- For the torch to already be unlit   (item_state)
+
+This is defined in a custom data type requirements:
+```
+export type Requirement =
+  | { type: "has_item"; itemId: string; failMessage: string }
+  | { type: "has_tag"; tag: string; failMessage: string }
+  | { type: "item_state"; itemId: string; key: string; value: boolean; failMessage: string };
+```
+Validation against the requirements is done sequentially has_item -> has_tag -> item_state.
+The Claude narrator should tell the player "you don't have a torch to light" before saying "you have nothing to light your nonexistent torch with".
+
+</details>
 
 <hr>
 
