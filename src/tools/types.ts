@@ -20,6 +20,7 @@ export type ErrorCode =
     | "UNKNOWN_TOOL"
     | "INVALID_INPUT"
     | "INTERNAL_ERROR"
+    | "REQUIREMENT_UNMET" // user tries to take an action that they don't meet reqs, e.g. "light torch" without both a torch AND an ignition source
 
 // map error codes to error categories
 // compiler enforces completeness - every code has a category
@@ -32,6 +33,7 @@ const CATEGORY: Record<ErrorCode, ErrorCategory> = {
   INVALID_INPUT: "invalid_input",
   INTERNAL_ERROR: "system",
   UNKNOWN_TOOL: "invalid_input",
+  REQUIREMENT_UNMET: "rule"
 };
 
 // outcome of a toolcall
