@@ -3,6 +3,30 @@ import { join } from "node:path";
 import { z } from "zod";
 import { ItemsFileSchema, RoomsFileSchema, type Item, type Room } from "./schemas.js";
 
+
+// EVERY ID MUST BE UNIQUE: any item, room or fixture CANNOT share an ID - as this is how interaction is determined
+function checkGlobalIds(items: Item[], rooms: Room[]): void {
+  const owners = new Map<string, string>(); // id → description of what uses it
+
+  // construct a hashmap
+  const claim = (id: string, owner: string) => {
+    const existing = owners.get(id);
+    if (existing) throw new WorldError(`Id "${id}" is used by ${existing} and by ${owner}`);
+    owners.set(id, owner);
+  };
+
+  for (const item of items) claim(item.id, "an item");
+  for (const room of rooms) {
+    claim(room.id, "a room");
+    for (const fixture of room.fixtures) claim(fixture.id, `a fixture in room "${room.id}"`);
+  }
+}
+
+
+
+
+
+
 export interface World {
     items: Record<string, Item>;
     rooms: Record<string, Room>;
@@ -38,6 +62,7 @@ export function buildWorld(rawItems: unknown, rawRooms: unknown): World {
     const roomsFile = parseOrThrow(RoomsFileSchema, rawRooms, "rooms.json");
 
     // 2. Uniqueness: no two things share an id
+    checkGlobalIds(itemsFile.items, roomsFile.rooms);
     const items = indexById(itemsFile.items, "item");
     const rooms = indexById(roomsFile.rooms, "room");
 
@@ -50,8 +75,6 @@ export function buildWorld(rawItems: unknown, rawRooms: unknown): World {
     // E.g. item with id "cellar_key" can't be both in the cellar and the hall.
     const placedIn: Record<string, string> = {};
     for (const room of roomsFile.rooms) {
-        indexById(room.fixtures, `fixture in "${room.id}"`);
-
         for (const itemId of room.items) {
             if (!items[itemId]) {
                 throw new WorldError(`Room "${room.id}" contains unknown item "${itemId}"`);

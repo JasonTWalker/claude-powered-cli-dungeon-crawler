@@ -1,32 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildWorld, loadWorld, WorldError } from "../src/game/world.js";
-
-// Raw JSON is untyped in real life (JSON.parse returns any), so the
-// fixtures are typed `any` too. That lets each test break them freely.
-function validItems(): any {
-  return {
-    items: [
-      { id: "torch", name: "Torch", description: "A torch.", tags: ["light_source"] },
-      { id: "lighter", name: "Lighter", description: "A lighter.", tags: ["ignition_source"] },
-    ],
-  };
-}
-
-function validRooms(): any {
-  return {
-    start: "entrance",
-    rooms: [
-      {
-        id: "entrance", name: "Entrance", description: "Steps.", dark: false,
-        exits: { east: { to: "store" } }, items: ["torch"], fixtures: [],
-      },
-      {
-        id: "store", name: "Store", description: "Shelves.", dark: true,
-        exits: { west: { to: "entrance" } }, items: ["lighter"], fixtures: [],
-      },
-    ],
-  };
-}
+import { validItems, validRooms } from "./fixtures.js";
 
 describe("buildWorld", () => {
   it("builds a valid world keyed by id", () => {
@@ -60,7 +34,7 @@ describe("buildWorld", () => {
   it("rejects duplicate room ids", () => {
     const rooms = validRooms();
     rooms.rooms[1].id = "entrance";
-    expect(() => buildWorld(validItems(), rooms)).toThrow(/Duplicate room id/);
+    expect(() => buildWorld(validItems(), rooms)).toThrow(/Id "entrance" is used by a room and by a room/);
   });
 
   it("rejects an exit to an unknown room", () => {
@@ -92,5 +66,56 @@ describe("loadWorld", () => {
   it("loads the real data files", () => {
     // Catches typos in data/*.json every time you run the tests
     expect(() => loadWorld()).not.toThrow();
+  });
+});
+
+
+describe("global ids", () => {
+  it("rejects an item and a fixture sharing an id", () => {
+    const rooms = validRooms();
+    rooms.rooms[0].fixtures[0].id = "torch";
+    expect(() => buildWorld(validItems(), rooms)).toThrow(
+      /Id "torch" is used by an item and by a fixture in room "entrance"/,
+    );
+  });
+
+  it("rejects the same fixture id in two different rooms", () => {
+    const rooms = validRooms();
+    rooms.rooms[1].fixtures.push({ id: "gate", name: "Gate", description: "Another gate.", affordances: [] });
+    expect(() => buildWorld(validItems(), rooms)).toThrow(/Id "gate" is used by a fixture in room "entrance"/);
+  });
+
+  it("rejects a room and an item sharing an id", () => {
+    const items = validItems();
+    items.items[0].id = "store";
+    const rooms = validRooms();
+    rooms.rooms[0].items = []; // remove reference to changed item
+    expect(() => buildWorld(items, rooms)).toThrow(/Id "store" is used by an item and by a room/);
+  });
+});
+
+describe("id and tag format", () => {
+  it.each(["Torch", "iron-gate", "iron gate", "2nd_key", ""])("rejects the id %j", (badId) => {
+    const items = validItems();
+    items.items[0].id = badId;
+    expect(() => buildWorld(items, validRooms())).toThrow(WorldError);
+  });
+
+  it("rejects a reference in the wrong format", () => {
+    const rooms = validRooms();
+    rooms.rooms[0].items = ["Torch"];
+    expect(() => buildWorld(validItems(), rooms)).toThrow(/lower snake_case/);
+  });
+
+  it("rejects a tag in the wrong format", () => {
+    const items = validItems();
+    items.items[1].tags = ["ignition source"];
+    expect(() => buildWorld(items, validRooms())).toThrow(/tags must be lower snake_case/);
+  });
+
+  it("rejects a state key in the wrong format", () => {
+    const items = validItems();
+    items.items[0].state = { isLit: false };
+    expect(() => buildWorld(items, validRooms())).toThrow(WorldError);
   });
 });

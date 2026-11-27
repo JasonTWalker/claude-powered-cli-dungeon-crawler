@@ -7,6 +7,7 @@ import { pickUpTool } from "./inventory/pickUp.js";
 import { dropTool } from "./inventory/drop.js";
 import { checkInventoryTool } from "./inventory/checkInventory.js";
 import { examineItemTool } from "./inventory/examineItem.js";
+import { lightTorchTool } from "./actions/lightTorch.js";
 
 
 // map tool definitions to their dispatch
@@ -49,4 +50,4 @@ export function createRegistry(tools: AnyGameTool[]): Registry {
 }
 
 // export the registry for the game
-export const registry = createRegistry([checkInventoryTool, examineItemTool, pickUpTool, dropTool]);
+export const registry = createRegistry([checkInventoryTool, examineItemTool, pickUpTool, dropTool, lightTorchTool]);
