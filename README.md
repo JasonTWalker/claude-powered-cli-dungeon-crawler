@@ -1410,4 +1410,33 @@ Good: "You sweep your hand across the damp flagstones, but there's no lighter he
 Bad: "Error: the lighter is not in the current room."`;
 ```
 
+#### Game Logic Flow
+```
+CLI         index.ts reads the line → not a /command → runTurn(ctx, text)
 
+AGENT       loop.ts:
+              buildSnapshot(world, state)  → "Fixtures: iron_gate (Iron Gate, locked) ..."
+              wrapPlayerInput(text)        → "<player_input>use the rusty key on the gate</player_input>"
+              callModel(...)               → Claude replies: tool_use use_item
+                                              { item_id: "rusty_key", target_id: "iron_gate" }
+
+TOOLS       registry.dispatch("use_item", input)
+              → tool exists?        ✓
+              → safeParse(input)    ✓ { item_id, target_id }
+              → useItem handler:
+
+GAME LOGIC      item exists & carried?         world.items / state.player.inventory
+                resolveTarget("iron_gate")     → { kind: "fixture", roomId: "entrance" }
+                findRule(rusty_key, iron_gate) → rule "unlock_gate"
+                checkRequirements(rule)        → iron_gate has "locked"? ✓
+                applyEffects(rule.effects)     → (2.5d)
+
+STATE             rooms.entrance.fixtures.iron_gate = []     (no longer locked)
+                  flags.gate_open = true
+
+TOOLS       → ok({ rule: "unlock_gate", message: "The key grinds in the lock..." })
+
+AGENT       toToolResult → tool_result back to Claude → Claude narrates → end_turn
+
+CLI         prints: "The key grinds in the lock, and the padlock falls open with a clang."
+```
